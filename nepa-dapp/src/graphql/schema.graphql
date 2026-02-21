@@ -1,0 +1,876 @@
+# GraphQL Schema for NEPA Platform
+# This schema defines all types, queries, mutations, and subscriptions
+
+# ============= SCALAR TYPES =============
+scalar Date
+scalar DateTime
+scalar JSON
+scalar BigInt
+scalar Decimal
+
+# ============= ENUM TYPES =============
+
+enum UserRole {
+  ADMIN
+  USER
+  SERVICE_PROVIDER
+  ANALYST
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+  REFUNDED
+}
+
+enum BillStatus {
+  DRAFT
+  ISSUED
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum PaymentMethod {
+  BANK_TRANSFER
+  CREDIT_CARD
+  DEBIT_CARD
+  CRYPTO
+  MOBILE_MONEY
+}
+
+enum ServiceType {
+  ELECTRICITY
+  WATER
+  GAS
+  INTERNET
+}
+
+enum RiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum StrategyStatus {
+  ACTIVE
+  INACTIVE
+  PAUSED
+  COMPLETED
+}
+
+enum PositionStatus {
+  ACTIVE
+  INACTIVE
+  WITHDRAWING
+  CLOSED
+}
+
+enum CreditGrade {
+  A
+  B
+  C
+  D
+  F
+}
+
+enum AccountType {
+  CHECKING
+  SAVINGS
+  BUSINESS
+  INVESTMENT
+}
+
+enum AccountStatus {
+  ACTIVE
+  INACTIVE
+  FROZEN
+  CLOSED
+}
+
+enum TransactionType {
+  DEBIT
+  CREDIT
+  TRANSFER
+  PAYMENT
+  WITHDRAWAL
+}
+
+enum AlertSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+enum NotificationType {
+  PAYMENT_SUCCESS
+  PAYMENT_FAILED
+  BILL_DUE
+  ACCOUNT_LOW
+  YIELD_UPDATE
+  CREDIT_ALERT
+  SYSTEM_MAINTENANCE
+}
+
+# ============= INPUT TYPES =============
+
+input PaginationInput {
+  limit: Int = 20
+  offset: Int = 0
+  cursor: String
+}
+
+input DateRangeInput {
+  startDate: Date
+  endDate: Date
+}
+
+input PaymentFilterInput {
+  status: PaymentStatus
+  method: PaymentMethod
+  dateRange: DateRangeInput
+  minAmount: Decimal
+  maxAmount: Decimal
+  billId: ID
+}
+
+input BillFilterInput {
+  status: BillStatus
+  serviceType: ServiceType
+  providerId: ID
+  dateRange: DateRangeInput
+  minAmount: Decimal
+  maxAmount: Decimal
+}
+
+input YieldFilterInput {
+  strategyId: ID
+  status: PositionStatus
+  riskLevel: RiskLevel
+  dateRange: DateRangeInput
+}
+
+input TransactionFilterInput {
+  type: TransactionType
+  status: AccountStatus
+  dateRange: DateRangeInput
+  minAmount: Decimal
+  maxAmount: Decimal
+}
+
+input UserProfileInput {
+  name: String
+  email: String
+  phone: String
+  address: AddressInput
+  preferences: UserPreferencesInput
+}
+
+input AddressInput {
+  street: String
+  city: String
+  state: String
+  zipCode: String
+  country: String
+}
+
+input UserPreferencesInput {
+  theme: String = "light"
+  notifications: Boolean = true
+  language: String = "en"
+  currency: String = "USD"
+  timezone: String = "UTC"
+}
+
+input PaymentInput {
+  billId: ID!
+  amount: Decimal!
+  currency: String = "USD"
+  method: PaymentMethod!
+  paymentDetails: JSON
+  scheduledDate: DateTime
+  reference: String
+}
+
+input YieldDeploymentInput {
+  strategyId: ID!
+  amount: Decimal!
+  autoRebalance: Boolean = false
+  riskTolerance: RiskLevel = MODERATE
+  stopLossThreshold: Decimal
+  takeProfitThreshold: Decimal
+}
+
+input BankAccountLinkInput {
+  bankCode: String!
+  credentials: JSON!
+  accountType: AccountType
+}
+
+input UtilityAccountLinkInput {
+  providerId: ID!
+  accountNumber: String!
+  credentials: JSON!
+}
+
+input CreditScoreRequestInput {
+  customerId: ID!
+  personalInfo: PersonalInfoInput!
+  financialInfo: FinancialInfoInput!
+}
+
+input PersonalInfoInput {
+  firstName: String!
+  lastName: String!
+  dateOfBirth: Date!
+  email: String!
+  phone: String!
+  address: AddressInput!
+}
+
+input FinancialInfoInput {
+  annualIncome: Decimal!
+  employmentStatus: String!
+  employerName: String
+  employmentDuration: Int
+  existingDebts: Decimal
+}
+
+# ============= TYPE DEFINITIONS =============
+
+type User {
+  id: ID!
+  email: String!
+  name: String!
+  phone: String
+  role: UserRole!
+  avatar: String
+  address: Address
+  preferences: UserPreferences!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  lastLoginAt: DateTime
+  isEmailVerified: Boolean!
+  isPhoneVerified: Boolean!
+  twoFactorEnabled: Boolean!
+}
+
+type Address {
+  street: String!
+  city: String!
+  state: String!
+  zipCode: String!
+  country: String!
+  coordinates: Coordinates
+}
+
+type Coordinates {
+  latitude: Float!
+  longitude: Float!
+}
+
+type UserPreferences {
+  theme: String!
+  notifications: Boolean!
+  language: String!
+  currency: String!
+  timezone: String!
+  emailNotifications: Boolean!
+  smsNotifications: Boolean!
+  pushNotifications: Boolean!
+}
+
+type UtilityBill {
+  id: ID!
+  billNumber: String!
+  provider: UtilityProvider!
+  serviceType: ServiceType!
+  account: UtilityAccount!
+  period: BillingPeriod!
+  dueDate: Date!
+  amount: Decimal!
+  currency: String!
+  status: BillStatus!
+  usage: UsageData!
+  rates: RateStructure!
+  paymentMethods: [PaymentMethod!]!
+  pdfUrl: String
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+type BillingPeriod {
+  startDate: Date!
+  endDate: Date!
+  days: Int!
+}
+
+type UsageData {
+  current: Decimal!
+  previous: Decimal!
+  unit: String!
+  dailyAverage: Decimal!
+  cost: Decimal!
+  trends: UsageTrends!
+}
+
+type UsageTrends {
+  direction: String!
+  percentage: Float!
+  forecast: Decimal!
+}
+
+type RateStructure {
+  baseRate: Decimal!
+  usageRate: Decimal!
+  taxes: Decimal!
+  fees: Decimal!
+  totalRate: Decimal!
+}
+
+type UtilityProvider {
+  id: ID!
+  name: String!
+  type: ServiceType!
+  country: String!
+  region: String!
+  supportedServices: [String!]!
+  apiVersion: String!
+  status: String!
+  logo: String
+  website: String
+  supportContact: ContactInfo
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+type ContactInfo {
+  email: String!
+  phone: String!
+  website: String
+  address: Address
+}
+
+type UtilityAccount {
+  id: ID!
+  provider: UtilityProvider!
+  accountNumber: String!
+  serviceAddress: Address!
+  serviceType: ServiceType!
+  status: AccountStatus!
+  customerSince: Date!
+  lastUpdated: DateTime!
+  isActive: Boolean!
+  autoPayEnabled: Boolean!
+  nextBillEstimate: BillEstimate
+}
+
+type BillEstimate {
+  amount: Decimal!
+  dueDate: Date!
+  confidence: Float!
+  basedOnUsage: Boolean!
+}
+
+type Payment {
+  id: ID!
+  bill: UtilityBill!
+  user: User!
+  amount: Decimal!
+  currency: String!
+  method: PaymentMethod!
+  status: PaymentStatus!
+  fees: Decimal!
+  transactionId: String
+  reference: String
+  scheduledDate: DateTime
+  processedAt: DateTime
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  metadata: JSON
+}
+
+type BankAccount {
+  id: ID!
+  user: User!
+  accountNumber: String!
+  accountType: AccountType!
+  bankName: String!
+  routingNumber: String!
+  balance: Decimal!
+  currency: String!
+  status: AccountStatus!
+  isPrimary: Boolean!
+  lastUpdated: DateTime!
+  createdAt: DateTime!
+}
+
+type Transaction {
+  id: ID!
+  account: BankAccount!
+  type: TransactionType!
+  amount: Decimal!
+  currency: String!
+  description: String!
+  reference: String
+  status: String!
+  balance: Decimal!
+  transactionDate: DateTime!
+  createdAt: DateTime!
+  metadata: JSON
+}
+
+type YieldStrategy {
+  id: ID!
+  name: String!
+  description: String!
+  riskLevel: RiskLevel!
+  expectedAPR: Float!
+  minAmount: Decimal!
+  maxAmount: Decimal!
+  asset: String!
+  isActive: Boolean!
+  requirements: [String!]!
+  performance: StrategyPerformance!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+type StrategyPerformance {
+  totalAPR: Float!
+  volatility: Float!
+  sharpeRatio: Float!
+  maxDrawdown: Float!
+  winRate: Float!
+  totalValueLocked: Decimal!
+  lastUpdated: DateTime!
+}
+
+type YieldPosition {
+  id: ID!
+  user: User!
+  strategy: YieldStrategy!
+  amount: Decimal!
+  asset: String!
+  currentAPR: Float!
+  earnedYield: Decimal!
+  netAPY: Float!
+  impermanentLoss: Decimal!
+  status: PositionStatus!
+  startTime: DateTime!
+  endTime: DateTime
+  lastUpdated: DateTime!
+  performance: PositionPerformance!
+}
+
+type PositionPerformance {
+  totalReturn: Decimal!
+  annualizedReturn: Float!
+  volatility: Float!
+  sharpeRatio: Float!
+  maxDrawdown: Float!
+  winRate: Float!
+}
+
+type CreditScore {
+  id: ID!
+  user: User!
+  score: Int!
+  grade: CreditGrade!
+  factors: [CreditFactor!]!
+  recommendations: [String!]!
+  lastUpdated: DateTime!
+  confidence: Float!
+  nextUpdate: DateTime
+}
+
+type CreditFactor {
+  factor: String!
+  impact: String!
+  description: String!
+  weight: Float!
+  value: Float!
+}
+
+type FraudDetection {
+  id: ID!
+  user: User!
+  transaction: Payment
+  riskScore: Float!
+  riskLevel: RiskLevel!
+  factors: [String!]!
+  recommendation: String!
+  confidence: Float!
+  createdAt: DateTime!
+}
+
+type Alert {
+  id: ID!
+  user: User!
+  type: NotificationType!
+  severity: AlertSeverity!
+  title: String!
+  message: String!
+  data: JSON
+  isRead: Boolean!
+  createdAt: DateTime!
+  readAt: DateTime
+}
+
+type Notification {
+  id: ID!
+  user: User!
+  type: NotificationType!
+  title: String!
+  message: String!
+  channels: [String!]!
+  data: JSON
+  sentAt: DateTime!
+  readAt: DateTime
+  isRead: Boolean!
+}
+
+type Analytics {
+  payments: PaymentAnalytics!
+  usage: UsageAnalytics!
+  yield: YieldAnalytics!
+  credit: CreditAnalytics!
+  dashboard: DashboardAnalytics!
+}
+
+type PaymentAnalytics {
+  totalAmount: Decimal!
+  totalCount: Int!
+  averageAmount: Decimal!
+  successRate: Float!
+  methods: [MethodAnalytics!]!
+  trends: [TrendData!]!
+  monthly: [MonthlyData!]!
+}
+
+type MethodAnalytics {
+  method: PaymentMethod!
+  count: Int!
+  amount: Decimal!
+  percentage: Float!
+  successRate: Float!
+}
+
+type TrendData {
+  date: Date!
+  value: Decimal!
+  change: Float!
+  changePercent: Float!
+}
+
+type MonthlyData {
+  month: String!
+  amount: Decimal!
+  count: Int!
+  average: Decimal!
+}
+
+type UsageAnalytics {
+  totalUsage: Decimal!
+  averageUsage: Decimal!
+  cost: Decimal!
+  trends: [TrendData!]!
+  byServiceType: [ServiceTypeAnalytics!]!
+  forecast: UsageForecast!
+}
+
+type ServiceTypeAnalytics {
+  serviceType: ServiceType!
+  usage: Decimal!
+  cost: Decimal!
+  percentage: Float!
+}
+
+type UsageForecast {
+  nextPeriod: Decimal!
+  nextMonth: Decimal!
+  confidence: Float!
+}
+
+type YieldAnalytics {
+  totalValue: Decimal!
+  totalYield: Decimal!
+  averageAPR: Float!
+  positions: Int!
+  strategies: [StrategyAnalytics!]!
+  performance: [PerformanceData!]!
+}
+
+type StrategyAnalytics {
+  strategy: YieldStrategy!
+  value: Decimal!
+  yield: Decimal!
+  apr: Float!
+  positions: Int!
+}
+
+type PerformanceData {
+  date: Date!
+  value: Decimal!
+  yield: Decimal!
+  apr: Float!
+}
+
+type CreditAnalytics {
+  currentScore: Int!
+  grade: CreditGrade!
+  scoreHistory: [ScoreHistory!]!
+  factors: [FactorAnalytics!]!
+  recommendations: [String!]!
+}
+
+type ScoreHistory {
+  date: Date!
+  score: Int!
+  grade: CreditGrade!
+  change: Int!
+}
+
+type FactorAnalytics {
+  factor: String!
+  impact: Float!
+  trend: String!
+  value: Float!
+}
+
+type DashboardAnalytics {
+  overview: OverviewMetrics!
+  charts: [ChartData!]!
+  widgets: [WidgetData!]!
+  alerts: [Alert!]!
+}
+
+type OverviewMetrics {
+  totalPayments: Int!
+  totalYield: Decimal!
+  activePositions: Int!
+  creditScore: Int!
+  monthlySavings: Decimal!
+  upcomingBills: Int!
+}
+
+type ChartData {
+  id: String!
+  title: String!
+  type: String!
+  data: JSON!
+  config: JSON!
+}
+
+type WidgetData {
+  id: String!
+  title: String!
+  type: String!
+  data: JSON!
+  config: JSON!
+}
+
+type SystemHealth {
+  status: String!
+  timestamp: DateTime!
+  uptime: Float!
+  services: [ServiceHealth!]!
+  metrics: SystemMetrics!
+}
+
+type ServiceHealth {
+  name: String!
+  status: String!
+  responseTime: Float!
+  lastCheck: DateTime!
+  errorRate: Float!
+}
+
+type SystemMetrics {
+  totalRequests: Int!
+  errorRate: Float!
+  averageResponseTime: Float!
+  activeConnections: Int!
+  memoryUsage: Float!
+  cpuUsage: Float!
+}
+
+# ============= QUERY TYPES =============
+
+type Query {
+  # User Management
+  me: User
+  user(id: ID!): User
+  users(filter: PaginationInput): [User!]!
+
+  # Utility Bills
+  bills(filter: BillFilterInput, pagination: PaginationInput): [UtilityBill!]!
+  bill(id: ID!): UtilityBill
+  upcomingBills(days: Int = 30): [UtilityBill!]!
+  overdueBills: [UtilityBill!]!
+
+  # Payments
+  payments(filter: PaymentFilterInput, pagination: PaginationInput): [Payment!]!
+  payment(id: ID!): Payment
+  paymentHistory(billId: ID, pagination: PaginationInput): [Payment!]!
+
+  # Utility Providers & Accounts
+  utilityProviders(type: ServiceType, region: String): [UtilityProvider!]!
+  utilityProvider(id: ID!): UtilityProvider
+  utilityAccounts: [UtilityAccount!]!
+  utilityAccount(id: ID!): UtilityAccount
+
+  # Banking
+  bankAccounts: [BankAccount!]!
+  bankAccount(id: ID!): BankAccount
+  transactions(accountId: ID, filter: TransactionFilterInput, pagination: PaginationInput): [Transaction!]!
+  transaction(id: ID!): Transaction
+
+  # Yield Generation
+  yieldStrategies: [YieldStrategy!]!
+  yieldStrategy(id: ID!): YieldStrategy
+  yieldPositions(filter: YieldFilterInput, pagination: PaginationInput): [YieldPosition!]!
+  yieldPosition(id: ID!): YieldPosition
+  yieldPerformance(positionId: ID): PositionPerformance
+
+  # Credit Scoring
+  creditScore: CreditScore
+  creditReport: CreditScore
+  fraudDetection(paymentId: ID): FraudDetection
+
+  # Analytics
+  analytics: Analytics!
+  dashboardAnalytics: DashboardAnalytics!
+  paymentAnalytics(filter: DateRangeInput): PaymentAnalytics!
+  usageAnalytics(filter: DateRangeInput): UsageAnalytics!
+  yieldAnalytics(filter: DateRangeInput): YieldAnalytics!
+  creditAnalytics: CreditAnalytics!
+
+  # Notifications & Alerts
+  notifications(isRead: Boolean, pagination: PaginationInput): [Notification!]!
+  alerts(severity: AlertSeverity, pagination: PaginationInput): [Alert!]!
+  unreadCount: Int!
+
+  # System
+  systemHealth: SystemHealth!
+  apiVersion: String!
+}
+
+# ============= MUTATION TYPES =============
+
+type Mutation {
+  # Authentication
+  login(email: String!, password: String!): AuthPayload!
+  logout: Boolean!
+  refreshToken: AuthPayload!
+  verifyToken(token: String!): Boolean!
+
+  # User Management
+  updateProfile(input: UserProfileInput!): User!
+  updatePreferences(preferences: UserPreferencesInput!): UserPreferences!
+  changePassword(currentPassword: String!, newPassword: String!): Boolean!
+  enableTwoFactor: Boolean!
+  disableTwoFactor: Boolean!
+
+  # Payments
+  createPayment(input: PaymentInput!): Payment!
+  schedulePayment(input: PaymentInput!): Payment!
+  cancelPayment(paymentId: ID!): Payment!
+  refundPayment(paymentId: ID!, reason: String): Payment!
+
+  # Utility Account Management
+  linkUtilityAccount(input: UtilityAccountLinkInput!): UtilityAccount!
+  unlinkUtilityAccount(accountId: ID!): Boolean!
+  enableAutoPay(accountId: ID!): Boolean!
+  disableAutoPay(accountId: ID!): Boolean!
+
+  # Banking
+  linkBankAccount(input: BankAccountLinkInput!): BankAccount!
+  unlinkBankAccount(accountId: ID!): Boolean!
+  setPrimaryAccount(accountId: ID!): BankAccount!
+  validateBankAccount(accountId: ID!): ValidationResponse!
+
+  # Yield Generation
+  deployYield(input: YieldDeploymentInput!): YieldPosition!
+  withdrawYield(positionId: ID!, amount: Decimal): YieldPosition!
+  closePosition(positionId: ID!): YieldPosition!
+  updatePosition(positionId: ID!, input: YieldDeploymentInput!): YieldPosition!
+  startAutomatedStrategy(strategyId: ID!): Boolean!
+  stopAutomatedStrategy(strategyId: ID!): Boolean!
+
+  # Credit Scoring
+  requestCreditScore(input: CreditScoreRequestInput!): CreditScore!
+  updateCreditProfile(input: UserProfileInput!): CreditScore!
+  enableCreditMonitoring: Boolean!
+  disableCreditMonitoring: Boolean!
+
+  # Notifications & Alerts
+  markNotificationAsRead(notificationId: ID!): Notification!
+  markAllNotificationsAsRead: Boolean!
+  deleteNotification(notificationId: ID!): Boolean!
+  createAlert(type: NotificationType!, message: String!, severity: AlertSeverity): Alert!
+  dismissAlert(alertId: ID!): Boolean!
+
+  # Admin Operations
+  createUser(input: UserProfileInput!, role: UserRole!): User!
+  updateUser(userId: ID!, input: UserProfileInput!): User!
+  deleteUser(userId: ID!): Boolean!
+  updateUtilityProvider(providerId: ID!, input: JSON!): UtilityProvider!
+  createUtilityProvider(input: JSON!): UtilityProvider!
+  deleteUtilityProvider(providerId: ID!): Boolean!
+}
+
+# ============= SUBSCRIPTION TYPES =============
+
+type Subscription {
+  # Real-time Updates
+  paymentUpdated(userId: ID): Payment!
+  billUpdated(userId: ID): UtilityBill!
+  yieldPositionUpdated(userId: ID): YieldPosition!
+  creditScoreUpdated(userId: ID): CreditScore!
+  accountBalanceUpdated(userId: ID): BankAccount!
+
+  # Notifications
+  notificationReceived(userId: ID!): Notification!
+  alertTriggered(userId: ID!): Alert!
+
+  # System Events
+  systemStatusChanged: SystemHealth!
+  newUtilityProvider: UtilityProvider!
+  yieldStrategyUpdated: YieldStrategy!
+
+  # Real-time Analytics
+  paymentAnalyticsUpdated: PaymentAnalytics!
+  usageAnalyticsUpdated: UsageAnalytics!
+  yieldAnalyticsUpdated: YieldAnalytics!
+
+  # Market Data
+  marketDataUpdated: JSON!
+  yieldRatesUpdated: [YieldStrategy!]!
+}
+
+# ============= SUPPORTING TYPES =============
+
+type AuthPayload {
+  token: String!
+  refreshToken: String!
+  user: User!
+  expiresIn: Int!
+}
+
+type ValidationResponse {
+  valid: Boolean!
+  message: String
+  details: JSON
+}
+
+# ============= DIRECTIVES =============
+
+directive @auth(requires: UserRole = USER) on FIELD_DEFINITION | OBJECT
+directive @rateLimit(limit: Int = 100, window: Int = 60) on FIELD_DEFINITION
+directive @cache(ttl: Int = 300) on FIELD_DEFINITION | OBJECT
+directive @validate(schema: String!) on INPUT_FIELD_DEFINITION | ARGUMENT_DEFINITION
+directive @deprecated(reason: String = "No longer supported") on FIELD_DEFINITION | ENUM_VALUE

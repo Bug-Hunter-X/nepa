@@ -1,0 +1,1088 @@
+openapi: 3.0.3
+info:
+  title: NEPA API
+  description: Decentralized utility payment platform API with DeFi yield generation and third-party integrations
+  version: 2.0.0
+  contact:
+    name: NEPA Support
+    email: support@nepa.com
+    url: https://nepa.com/support
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+  servers:
+    - url: https://api.nepa.com/v2
+      description: Production server
+    - url: https://staging-api.nepa.com/v2
+      description: Staging server
+    - url: https://sandbox-api.nepa.com/v2
+      description: Sandbox server
+
+security:
+  - BearerAuth:
+    type: http
+    scheme: bearer
+    bearerFormat: JWT
+  - ApiKeyAuth:
+    type: apiKey
+    in: header
+    name: X-API-Key
+
+paths:
+  /health:
+    get:
+      tags:
+        - Health
+      summary: API Health Check
+      description: Check the health status of the API and its dependencies
+      operationId: healthCheck
+      responses:
+        '200':
+          description: API is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+        '503':
+          description: API is unhealthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/oauth/authorize:
+    post:
+      tags:
+        - Authentication
+      summary: OAuth Authorization
+      description: Initiate OAuth 2.0 authorization flow
+      operationId: oauthAuthorize
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OAuthAuthorizeRequest'
+      responses:
+        '200':
+          description: Authorization URL generated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuthAuthorizeResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/oauth/token:
+    post:
+      tags:
+        - Authentication
+      summary: OAuth Token Exchange
+      description: Exchange authorization code for access token
+      operationId: oauthToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OAuthTokenRequest'
+      responses:
+        '200':
+          description: Access token granted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuthTokenResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /users/profile:
+    get:
+      tags:
+        - Users
+      summary: Get User Profile
+      description: Retrieve the authenticated user's profile information
+      operationId: getUserProfile
+      security:
+        - BearerAuth
+      responses:
+        '200':
+          description: User profile retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    put:
+      tags:
+        - Users
+      summary: Update User Profile
+      description: Update the authenticated user's profile information
+      operationId: updateUserProfile
+      security:
+        - BearerAuth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserProfileUpdate'
+      responses:
+        '200':
+          description: Profile updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          description: Invalid input data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /payments/bills:
+    get:
+      tags:
+        - Payments
+      summary: Get Payment Bills
+      description: Retrieve user's utility bills
+      operationId: getPaymentBills
+      security:
+        - BearerAuth
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, paid, overdue, cancelled]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+      responses:
+        '200':
+          description: Bills retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentBillsResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      tags:
+        - Payments
+      summary: Pay Utility Bill
+      description: Process a utility bill payment
+      operationId: payBill
+      security:
+        - BearerAuth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentRequest'
+      responses:
+        '200':
+          description: Payment processed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentResponse'
+        '400':
+          description: Invalid payment request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '402':
+          description: Payment failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /yield/strategies:
+    get:
+      tags:
+        - Yield Generation
+      summary: Get Yield Strategies
+      description: Retrieve available yield generation strategies
+      operationId: getYieldStrategies
+      security:
+        - BearerAuth
+      responses:
+        '200':
+          description: Strategies retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/YieldStrategiesResponse'
+
+  /yield/deploy:
+    post:
+      tags:
+        - Yield Generation
+      summary: Deploy to Yield Strategy
+      description: Deploy funds to a yield generation strategy
+      operationId: deployYield
+      security:
+        - BearerAuth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/YieldDeploymentRequest'
+      responses:
+        '200':
+          description: Deployment successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/YieldDeploymentResponse'
+        '400':
+          description: Invalid deployment request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /yield/positions:
+    get:
+      tags:
+        - Yield Generation
+      summary: Get Yield Positions
+      description: Retrieve user's active yield positions
+      operationId: getYieldPositions
+      security:
+        - BearerAuth
+      parameters:
+        - name: strategy
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, inactive, all]
+      responses:
+        '200':
+          description: Positions retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/YieldPositionsResponse'
+
+  /credit/score:
+    get:
+      tags:
+        - Credit Scoring
+      summary: Get Credit Score
+      description: Retrieve user's credit score and report
+      operationId: getCreditScore
+      security:
+        - BearerAuth
+      responses:
+        '200':
+          description: Credit score retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreditScoreResponse'
+        '404':
+          description: Credit score not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /banking/accounts:
+    get:
+      tags:
+        - Banking Integration
+      summary: Get Banking Accounts
+      description: Retrieve user's linked banking accounts
+      operationId: getBankingAccounts
+      security:
+        - BearerAuth
+      responses:
+        '200':
+          description: Accounts retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BankingAccountsResponse'
+
+  /utilities/providers:
+    get:
+      tags:
+        - Utility Providers
+      summary: Get Utility Providers
+      description: Retrieve available utility providers
+      operationId: getUtilityProviders
+      security:
+        - BearerAuth
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [electricity, water, gas, internet]
+        - name: region
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Providers retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UtilityProvidersResponse'
+
+  /analytics/dashboard:
+    get:
+      tags:
+        - Analytics
+      summary: Get Dashboard Analytics
+      description: Retrieve comprehensive dashboard analytics
+      operationId: getDashboardAnalytics
+      security:
+        - BearerAuth
+      responses:
+        '200':
+          description: Analytics retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardAnalyticsResponse'
+
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+        timestamp:
+          type: string
+          format: date-time
+        version:
+          type: string
+        uptime:
+          type: number
+        services:
+          type: object
+          properties:
+            total:
+              type: integer
+            healthy:
+              type: integer
+            degraded:
+              type: integer
+            unhealthy:
+              type: integer
+
+    ErrorResponse:
+      type: object
+      required:
+        - success
+        - error
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: object
+          required:
+            - code
+            - message
+          properties:
+            code:
+              type: string
+              example: VALIDATION_ERROR
+            message:
+              type: string
+              example: Request validation failed
+            details:
+              type: object
+              description: Additional error details
+
+    SuccessResponse:
+      type: object
+      required:
+        - success
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Operation completed successfully
+
+    OAuthAuthorizeRequest:
+      type: object
+      required:
+        - client_id
+        - redirect_uri
+        - scope
+      properties:
+        client_id:
+          type: string
+          description: OAuth client identifier
+        redirect_uri:
+          type: string
+          format: uri
+          description: Redirect URI after authorization
+        scope:
+          type: string
+          description: Requested permissions scope
+        state:
+          type: string
+          description: CSRF protection parameter
+
+    OAuthAuthorizeResponse:
+      type: object
+      properties:
+        authorize_url:
+          type: string
+          format: uri
+          description: URL to redirect user for authorization
+        state:
+          type: string
+          description: State parameter for CSRF protection
+
+    OAuthTokenRequest:
+      type: object
+      required:
+        - grant_type
+        - code
+        - redirect_uri
+      properties:
+        grant_type:
+          type: string
+          enum: [authorization_code]
+        code:
+          type: string
+          description: Authorization code received from OAuth provider
+        redirect_uri:
+          type: string
+          format: uri
+          description: Redirect URI used in authorization request
+        client_id:
+          type: string
+          description: OAuth client identifier
+        client_secret:
+          type: string
+          description: OAuth client secret
+
+    OAuthTokenResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+          description: JWT access token
+        token_type:
+          type: string
+          example: Bearer
+        expires_in:
+          type: integer
+          description: Token expiration time in seconds
+        refresh_token:
+          type: string
+          description: Token for refreshing access token
+
+    UserProfile:
+      type: object
+      properties:
+        id:
+          type: string
+          description: User identifier
+        email:
+          type: string
+          format: email
+          description: User email address
+        name:
+          type: string
+          description: User full name
+        phone:
+          type: string
+          description: User phone number
+        address:
+          type: object
+          properties:
+            street:
+              type: string
+            city:
+              type: string
+            state:
+              type: string
+            zipCode:
+              type: string
+            country:
+              type: string
+        preferences:
+          type: object
+          properties:
+            theme:
+              type: string
+              enum: [light, dark]
+            notifications:
+              type: boolean
+            language:
+              type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    UserProfileUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          description: User full name
+        phone:
+          type: string
+          description: User phone number
+        address:
+          type: object
+          properties:
+            street:
+              type: string
+            city:
+              type: string
+            state:
+              type: string
+            zipCode:
+              type: string
+            country:
+              type: string
+        preferences:
+          type: object
+          properties:
+            theme:
+              type: string
+              enum: [light, dark]
+            notifications:
+              type: boolean
+            language:
+              type: string
+
+    PaymentBillsResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            bills:
+              type: array
+              items:
+                $ref: '#/components/schemas/UtilityBill'
+            pagination:
+              $ref: '#/components/schemas/Pagination'
+
+    UtilityBill:
+      type: object
+      properties:
+        id:
+          type: string
+        bill_number:
+          type: string
+        provider:
+          type: string
+        service_type:
+          type: string
+          enum: [electricity, water, gas, internet]
+        period:
+          type: object
+          properties:
+            start_date:
+              type: string
+              format: date
+            end_date:
+              type: string
+              format: date
+        due_date:
+          type: string
+          format: date
+        amount:
+          type: number
+          format: double
+        currency:
+          type: string
+        status:
+          type: string
+          enum: [draft, issued, paid, overdue, cancelled]
+        usage:
+          type: object
+          properties:
+            current:
+              type: number
+            previous:
+              type: number
+            unit:
+              type: string
+        payment_methods:
+          type: array
+          items:
+            type: string
+
+    PaymentRequest:
+      type: object
+      required:
+        - bill_id
+        - amount
+        - payment_method
+      properties:
+        bill_id:
+          type: string
+          description: Bill identifier to pay
+        amount:
+          type: number
+          format: double
+          description: Payment amount
+        currency:
+          type: string
+          description: Payment currency
+        payment_method:
+          type: string
+          enum: [bank_transfer, credit_card, crypto]
+        payment_details:
+          type: object
+          description: Payment method specific details
+        scheduled_date:
+          type: string
+          format: date-time
+          description: Schedule payment for future date
+        reference:
+          type: string
+          description: Payment reference or memo
+
+    PaymentResponse:
+      type: object
+      properties:
+        payment_id:
+          type: string
+        status:
+          type: string
+          enum: [pending, processing, completed, failed, cancelled]
+        amount:
+          type: number
+          format: double
+        currency:
+          type: string
+        fees:
+          type: number
+          format: double
+        transaction_id:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        processed_at:
+          type: string
+          format: date-time
+
+    YieldStrategiesResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            strategies:
+              type: array
+              items:
+                $ref: '#/components/schemas/YieldStrategy'
+
+    YieldStrategy:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        risk_level:
+          type: string
+          enum: [low, medium, high]
+        expected_apr:
+          type: number
+          format: double
+        min_amount:
+          type: number
+          format: double
+        max_amount:
+          type: number
+          format: double
+        asset:
+          type: string
+        is_active:
+          type: boolean
+        requirements:
+          type: array
+          items:
+            type: string
+
+    YieldDeploymentRequest:
+      type: object
+      required:
+        - strategy_id
+        - amount
+      properties:
+        strategy_id:
+          type: string
+          description: Strategy identifier to deploy funds to
+        amount:
+          type: number
+          format: double
+          description: Amount to deploy
+        auto_rebalance:
+          type: boolean
+          description: Enable automatic rebalancing
+        risk_tolerance:
+          type: string
+          enum: [conservative, moderate, aggressive]
+          description: Risk tolerance level
+
+    YieldDeploymentResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            deployment_id:
+              type: string
+            transaction_hash:
+              type: string
+            status:
+              type: string
+            estimated_apr:
+              type: number
+              format: double
+            position_id:
+              type: string
+
+    YieldPositionsResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            positions:
+              type: array
+              items:
+                $ref: '#/components/schemas/YieldPosition'
+            total_value:
+              type: number
+              format: double
+            total_yield:
+              type: number
+              format: double
+
+    YieldPosition:
+      type: object
+      properties:
+        id:
+          type: string
+        strategy_id:
+          type: string
+        strategy_name:
+          type: string
+        amount:
+          type: number
+          format: double
+        asset:
+          type: string
+        current_apr:
+          type: number
+          format: double
+        earned_yield:
+          type: number
+          format: double
+        start_time:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [active, inactive, withdrawing]
+
+    CreditScoreResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            score:
+              type: integer
+              minimum: 300
+              maximum: 850
+            grade:
+              type: string
+              enum: [A, B, C, D, F]
+            factors:
+              type: array
+              items:
+                $ref: '#/components/schemas/CreditFactor'
+            recommendations:
+              type: array
+              items:
+                type: string
+            last_updated:
+              type: string
+              format: date-time
+            confidence:
+              type: number
+              minimum: 0
+              maximum: 1
+
+    CreditFactor:
+      type: object
+      properties:
+        factor:
+          type: string
+        impact:
+          type: string
+          enum: [positive, negative, neutral]
+        description:
+          type: string
+        weight:
+          type: number
+          format: double
+
+    BankingAccountsResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            accounts:
+              type: array
+              items:
+                $ref: '#/components/schemas/BankAccount'
+            summary:
+              type: object
+              properties:
+                total_balance:
+                  type: number
+                  format: double
+                total_accounts:
+                  type: integer
+
+    BankAccount:
+      type: object
+      properties:
+        id:
+          type: string
+        account_number:
+          type: string
+        account_type:
+          type: string
+          enum: [checking, savings, business]
+        bank_name:
+          type: string
+        routing_number:
+          type: string
+        balance:
+          type: number
+          format: double
+        currency:
+          type: string
+        status:
+          type: string
+          enum: [active, inactive, frozen]
+        last_updated:
+          type: string
+          format: date-time
+
+    UtilityProvidersResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            providers:
+              type: array
+              items:
+                $ref: '#/components/schemas/UtilityProvider'
+
+    UtilityProvider:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+          enum: [electricity, water, gas, internet]
+        country:
+          type: string
+        region:
+          type: string
+        supported_services:
+          type: array
+          items:
+            type: string
+        api_version:
+          type: string
+        status:
+          type: string
+          enum: [active, inactive, maintenance]
+
+    DashboardAnalyticsResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            overview:
+              type: object
+              properties:
+                total_payments:
+                  type: number
+                total_yield:
+                  type: number
+                active_positions:
+                  type: integer
+                credit_score:
+                  type: integer
+            charts:
+              type: array
+              items:
+                $ref: '#/components/schemas/Chart'
+            widgets:
+              type: array
+              items:
+                $ref: '#/components/schemas/Widget'
+
+    Chart:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        type:
+          type: string
+          enum: [line, bar, pie, area]
+        data:
+          type: array
+          items:
+            type: object
+        config:
+          type: object
+
+    Widget:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        type:
+          type: string
+        data:
+          type: object
+        config:
+          type: object
+
+    Pagination:
+      type: object
+      required:
+        - page
+        - limit
+        - total
+        - totalPages
+      properties:
+        page:
+          type: integer
+          minimum: 1
+        limit:
+          type: integer
+          minimum: 1
+        total:
+          type: integer
+          minimum: 0
+        totalPages:
+          type: integer
+          minimum: 1
+
+tags:
+  - name: Health
+    description: API health and status endpoints
+  - name: Authentication
+    description: OAuth 2.0 authentication and user management
+  - name: Users
+    description: User profile and preference management
+  - name: Payments
+    description: Utility bill payment processing
+  - name: Yield Generation
+    description: DeFi yield generation strategies and positions
+  - name: Credit Scoring
+    description: Credit score retrieval and monitoring
+  - name: Banking Integration
+    description: External banking API integration
+  - name: Utility Providers
+    description: Utility provider integration and management
+  - name: Analytics
+    description: Analytics and reporting endpoints
