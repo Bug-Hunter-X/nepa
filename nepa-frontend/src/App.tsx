@@ -3,8 +3,11 @@ import { isConnected, requestAccess, signTransaction } from "@stellar/freighter-
 import * as NepaClient from './contracts';
 import YieldDashboard from './components/YieldDashboard';
 import MobileNavigation from './components/MobileNavigation';
+import AuthPage from './pages/AuthPage';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 
-function App() {
+function AppContent() {
+  const { user, isAuthenticated, logout } = useAuth();
   const [currentView, setCurrentView] = useState<'payment' | 'yield'>('payment');
   const [meterId, setMeterId] = useState('');
   const [amount, setAmount] = useState('');
@@ -56,19 +59,54 @@ function App() {
     }
   };
 
+  // If user is not authenticated, show auth page
+  if (!isAuthenticated) {
+    return <AuthPage />;
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Header with user info and logout */}
+      <div className="bg-white shadow-sm border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center py-4">
+            <div className="flex items-center space-x-4">
+              <h1 className="text-xl font-bold text-blue-600">NEPA 💡</h1>
+              {user && (
+                <div className="flex items-center space-x-2">
+                  <span className="text-sm text-gray-600">Welcome,</span>
+                  <span className="text-sm font-medium text-gray-900">
+                    {user.name || user.username || user.email}
+                  </span>
+                  {user.role !== 'USER' && (
+                    <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded">
+                      {user.role}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+            <button
+              onClick={logout}
+              className="text-sm text-gray-500 hover:text-gray-700 font-medium"
+            >
+              Logout
+            </button>
+          </div>
+        </div>
+      </div>
+
       <MobileNavigation currentView={currentView} onViewChange={setCurrentView} />
       
       <div className="p-4 pt-0 lg:pt-8 lg:px-8 font-sans">
         {currentView === 'payment' ? (
           <div className="w-full max-w-md mx-auto sm:max-w-lg lg:max-w-xl">
             <div className="text-center mb-8 mt-8 lg:mt-0">
-              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-blue-600 mb-2">
-                NEPA 💡
-              </h1>
+              <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-blue-600 mb-2">
+                Pay Electricity Bill
+              </h2>
               <p className="text-gray-600 text-sm sm:text-base">
-                Decentralized Utility Payments
+                Secure utility payments with blockchain
               </p>
             </div>
 
@@ -123,6 +161,14 @@ function App() {
         )}
       </div>
     </div>
+  );
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }
 

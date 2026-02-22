@@ -3,6 +3,7 @@ import swaggerUi from 'swagger-ui-express';
 import { apiLimiter, ddosDetector, checkBlockedIP, ipRestriction, progressiveLimiter, authLimiter } from './middleware/rateLimiter';
 import { configureSecurity } from './middleware/security';
 import { apiKeyAuth } from './middleware/auth';
+import { authenticate, authorize, optionalAuth } from './middleware/authentication';
 import { requestLogger } from './middleware/logger';
 import { errorTracker } from './middleware/abuseDetection';
 import { swaggerSpec } from './swagger';
@@ -10,8 +11,15 @@ import { upload } from './middleware/upload';
 import { uploadDocument } from './controllers/DocumentController';
 import { getDashboardData, generateReport, exportData } from './controllers/AnalyticsController';
 import { applyPaymentSecurity, processPayment, getPaymentHistory, validatePayment } from './controllers/PaymentController';
+import { AuthenticationController } from './controllers/AuthenticationController';
+import { UserController } from './controllers/UserController';
+import { UserRole } from '@prisma/client';
 
 const app = express();
+
+// Initialize controllers
+const authController = new AuthenticationController();
+const userController = new UserController();
 
 // 1. Logging (should be first to capture all requests)
 app.use(requestLogger);
@@ -48,15 +56,32 @@ app.get('/health', (req, res) => {
 app.use('/api', apiKeyAuth);
 
 // Authentication endpoints with stricter rate limiting
-app.post('/api/auth/login', authLimiter, (req, res) => {
-  // Login logic here
-  res.json({ message: 'Login endpoint' });
-});
+app.post('/api/auth/register', authLimiter, authController.register.bind(authController));
+app.post('/api/auth/login', authLimiter, authController.login.bind(authController));
+app.post('/api/auth/wallet', authLimiter, authController.loginWithWallet.bind(authController));
+app.post('/api/auth/refresh', authLimiter, authController.refreshToken.bind(authController));
+app.post('/api/auth/logout', authenticate, authController.logout.bind(authController));
 
-app.post('/api/auth/register', authLimiter, (req, res) => {
-  // Registration logic here
-  res.json({ message: 'Register endpoint' });
-});
+// User profile endpoints
+app.get('/api/user/profile', authenticate, authController.getProfile.bind(authController));
+app.put('/api/user/profile', authenticate, userController.updateProfile.bind(userController));
+app.get('/api/user/preferences', authenticate, userController.getPreferences.bind(userController));
+app.put('/api/user/preferences', authenticate, userController.updatePreferences.bind(userController));
+app.post('/api/user/change-password', authenticate, userController.changePassword.bind(userController));
+
+// Two-factor authentication endpoints
+app.post('/api/user/2fa/enable', authenticate, authController.enableTwoFactor.bind(authController));
+app.post('/api/user/2fa/verify', authenticate, authController.verifyTwoFactor.bind(authController));
+
+// User sessions
+app.get('/api/user/sessions', authenticate, userController.getUserSessions.bind(userController));
+app.delete('/api/user/sessions/:sessionId', authenticate, userController.revokeSession.bind(userController));
+
+// Admin user management endpoints
+app.get('/api/admin/users', authenticate, authorize(UserRole.ADMIN), userController.getAllUsers.bind(userController));
+app.get('/api/admin/users/:id', authenticate, authorize(UserRole.ADMIN), userController.getUserById.bind(userController));
+app.put('/api/admin/users/:id/role', authenticate, authorize(UserRole.ADMIN), userController.updateUserRole.bind(userController));
+app.delete('/api/admin/users/:id', authenticate, authorize(UserRole.ADMIN), userController.deleteUser.bind(userController));
 
 // Payment endpoints with enhanced security
 app.post('/api/payment/process', ...applyPaymentSecurity, processPayment);

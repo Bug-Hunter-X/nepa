@@ -19,21 +19,64 @@ enum PaymentStatus {
   PENDING
 }
 
+enum UserRole {
+  USER
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  PENDING_VERIFICATION
+}
+
+enum TwoFactorMethod {
+  NONE
+  EMAIL
+  SMS
+  AUTHENTICATOR_APP
+}
+
 model User {
-  id        String    @id @default(uuid())
-  email     String    @unique
-  name      String?
-  phoneNumber String?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  bills     Bill[]
-  payments  Payment[]
+  id                String           @id @default(uuid())
+  email             String           @unique
+  username          String?          @unique
+  passwordHash      String?          // For traditional auth
+  name              String?
+  phoneNumber       String?
+  avatar            String?
+  role              UserRole         @default(USER)
+  status            UserStatus       @default(PENDING_VERIFICATION)
+  walletAddress     String?          @unique // Stellar wallet address
+  isEmailVerified   Boolean          @default(false)
+  isPhoneVerified   Boolean          @default(false)
+  twoFactorEnabled  Boolean          @default(false)
+  twoFactorMethod   TwoFactorMethod  @default(NONE)
+  twoFactorSecret   String?          // For TOTP
+  lastLoginAt       DateTime?
+  loginAttempts     Int              @default(0)
+  lockedUntil       DateTime?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  
+  // Relations
+  bills             Bill[]
+  payments          Payment[]
+  sessions          UserSession[]
+  profiles          UserProfile[]
   notificationPreference NotificationPreference?
   notificationLogs       NotificationLog[]
   documents              Document[]
   reports                Report[]
+  auditLogs              AuditLog[]
 
   @@index([email])
+  @@index([username])
+  @@index([walletAddress])
+  @@index([role])
+  @@index([status])
 }
 
 model Utility {
@@ -144,4 +187,58 @@ model Report {
   createdAt DateTime @default(now())
   
   user      User     @relation(fields: [createdBy], references: [id])
+}
+
+model UserSession {
+  id           String   @id @default(uuid())
+  userId       String
+  token        String   @unique
+  refreshToken String?  @unique
+  userAgent    String?
+  ipAddress    String?
+  isActive     Boolean  @default(true)
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  user         User     @relation(fields: [userId], references: [id])
+  
+  @@index([userId])
+  @@index([token])
+  @@index([expiresAt])
+}
+
+model UserProfile {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  bio         String?
+  location    String?
+  website     String?
+  timezone    String   @default("UTC")
+  language    String   @default("en")
+  currency    String   @default("USD")
+  theme       String   @default("light") // 'light', 'dark', 'auto'
+  preferences Json?    // User preferences as JSON
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  user        User     @relation(fields: [userId], references: [id])
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  action    String   // 'LOGIN', 'LOGOUT', 'PASSWORD_CHANGE', 'ROLE_UPDATE', etc.
+  resource  String?  // Resource affected (e.g., 'user', 'bill', 'payment')
+  resourceId String? // ID of the resource affected
+  metadata  Json?    // Additional context
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  
+  user      User?    @relation(fields: [userId], references: [id])
+  
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
 }
