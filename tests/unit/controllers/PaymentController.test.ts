@@ -1,0 +1,389 @@
+import { Request, Response } from 'express';
+import { processPayment, getPaymentHistory, validatePayment } from '../../controllers/PaymentController';
+import { BillingService } from '../../BillingService';
+import { mockRequest, mockResponse, createMockAuth } from '../mocks';
+
+jest.mock('../../BillingService');
+
+const MockedBillingService = BillingService as jest.MockedClass<typeof BillingService>;
+
+describe('PaymentController', () => {
+  let mockBillingService: any;
+  let req: Request;
+  let res: Response;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockBillingService = {
+      processPayment: jest.fn(),
+      getPaymentHistory: jest.fn(),
+      getBill: jest.fn()
+    };
+    MockedBillingService.mockImplementation(() => mockBillingService);
+    req = mockRequest();
+    res = mockResponse();
+  });
+
+  describe('processPayment', () => {
+    const validPaymentData = {
+      billId: 'bill-123',
+      amount: 100.50,
+      paymentMethod: 'CREDIT_CARD'
+    };
+
+    it('should process payment successfully', async () => {
+      req.body = validPaymentData;
+      (req as any).user = createMockAuth('user-123');
+      
+      const mockPaymentResult = {
+        id: 'payment-123',
+        status: 'COMPLETED',
+        transactionId: 'txn-123'
+      };
+      
+      mockBillingService.processPayment.mockResolvedValue(mockPaymentResult);
+
+      await processPayment(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({
+        status: 200,
+        message: 'Payment processed successfully',
+        data: mockPaymentResult
+      });
+    });
+
+    it('should return error for unauthenticated user', async () => {
+      req.body = validPaymentData;
+      // No user set on request
+
+      await processPayment(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(401);
+      expect(res.json).toHaveBeenCalledWith({
+        status: 401,
+        error: 'User authentication required'
+      });
+    });
+
+    it('should return error for missing billId', async () => {
+      req.body = {
+        amount: 100.50,
+        paymentMethod: 'CREDIT_CARD'
+      };
+      (req as any).user = createMockAuth('user-123');
+
+      await processPayment(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        status: 400,
+        error: 'Missing required payment fields'
+      });
+    });
+
+    it('should return error for missing amount', async () => {
+      req.body = {
+        billId: 'bill-123',
+        paymentMethod: 'CREDIT_CARD'
+      };
+      (req as any).user = createMockAuth('user-123');
+
+      await processPayment(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        status: 400,
+        error: 'Missing required payment fields'
+      });
+    });
+
+    it('should return error for missing payment method', async () => {
+      req.body = {
+        billId: 'bill-123',
+        amount: 100.50
+      };
+      (req as any).user = createMockAuth('user-123');
+
+      await processPayment(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        status: 400,
+        error: 'Missing required payment fields'
+      });
+    });
+
+    it('should return error for zero or negative amount', async () => {
+      req.body = {
+        ...validPaymentData,
+        amount: 0
+      };
+      (req as any).user = createMockAuth('user-123');
+
+      await processPayment(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        status: 400,
+        error: 'Payment amount must be greater than 0'
+      });
+    });
+
+    it('should return error for negative amount', async () => {
+      req.body = {
+        ...validPaymentData,
+        amount: -50
+      };
+      (req as any).user = createMockAuth('user-123');
+
+      await processPayment(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        status: 400,
+        error: 'Payment amount must be greater than 0'
+      });
+    });
+
+    it('should handle payment processing errors', async () => {
+      req.body = validPaymentData;
+      (req as any).user = createMockAuth('user-123');
+      
+      mockBillingService.processPayment.mockRejectedValue(new Error('Payment gateway error'));
+
+      await processPayment(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({
+        status: 500,
+        error: 'Payment processing failed'
+      });
+    });
+  });
+
+  describe('getPaymentHistory', () => {
+    it('should return payment history successfully', async () => {
+      (req as any).user = createMockAuth('user-123');
+      req.query = { limit: '5', offset: '10' };
+      
+      const mockPaymentHistory = [
+        {
+          id: 'payment-1',
+          amount: 100,
+          status: 'COMPLETED',
+          createdAt: new Date()
+        },
+        {
+          id: 'payment-2',
+          amount: 50,
+          status: 'PENDING',
+          createdAt: new Date()
+        }
+      ];
+      
+      mockBillingService.getPaymentHistory.mockResolvedValue(mockPaymentHistory);
+
+      await getPaymentHistory(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({
+        status: 200,
+        data: mockPaymentHistory
+      });
+      expect(mockBillingService.getPaymentHistory).toHaveBeenCalledWith('user-123', 5, 10);
+    });
+
+    it('should use default limit and offset values', async () => {
+      (req as any).user = createMockAuth('user-123');
+      req.query = {}; // No limit or offset provided
+      
+      const mockPaymentHistory = [];
+      mockBillingService.getPaymentHistory.mockResolvedValue(mockPaymentHistory);
+
+      await getPaymentHistory(req, res);
+
+      expect(mockBillingService.getPaymentHistory).toHaveBeenCalledWith('user-123', 10, 0);
+    });
+
+    it('should return error for unauthenticated user', async () => {
+      // No user set on request
+      req.query = { limit: '5', offset: '10' };
+
+      await getPaymentHistory(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(401);
+      expect(res.json).toHaveBeenCalledWith({
+        status: 401,
+        error: 'User authentication required'
+      });
+    });
+
+    it('should handle payment history retrieval errors', async () => {
+      (req as any).user = createMockAuth('user-123');
+      req.query = { limit: '5', offset: '10' };
+      
+      mockBillingService.getPaymentHistory.mockRejectedValue(new Error('Database error'));
+
+      await getPaymentHistory(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({
+        status: 500,
+        error: 'Failed to retrieve payment history'
+      });
+    });
+  });
+
+  describe('validatePayment', () => {
+    const validValidationData = {
+      billId: 'bill-123',
+      amount: 100.50
+    };
+
+    const mockBill = {
+      id: 'bill-123',
+      userId: 'user-123',
+      amount: 100,
+      lateFee: 5,
+      status: 'PENDING'
+    };
+
+    it('should validate payment data successfully', async () => {
+      req.body = validValidationData;
+      (req as any).user = createMockAuth('user-123');
+      
+      mockBillingService.getBill.mockResolvedValue(mockBill);
+
+      await validatePayment(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({
+        status: 200,
+        message: 'Payment data is valid',
+        data: {
+          billAmount: mockBill.amount,
+          lateFee: mockBill.lateFee,
+          totalDue: 105
+        }
+      });
+    });
+
+    it('should return error for unauthenticated user', async () => {
+      req.body = validValidationData;
+      // No user set on request
+
+      await validatePayment(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(401);
+      expect(res.json).toHaveBeenCalledWith({
+        status: 401,
+        error: 'User authentication required'
+      });
+    });
+
+    it('should return error for non-existent bill', async () => {
+      req.body = validValidationData;
+      (req as any).user = createMockAuth('user-123');
+      
+      mockBillingService.getBill.mockResolvedValue(null);
+
+      await validatePayment(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith({
+        status: 404,
+        error: 'Bill not found or access denied'
+      });
+    });
+
+    it('should return error for bill belonging to different user', async () => {
+      req.body = validValidationData;
+      (req as any).user = createMockAuth('user-456'); // Different user
+      
+      const billForDifferentUser = {
+        ...mockBill,
+        userId: 'user-789' // Yet another user
+      };
+      
+      mockBillingService.getBill.mockResolvedValue(billForDifferentUser);
+
+      await validatePayment(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith({
+        status: 404,
+        error: 'Bill not found or access denied'
+      });
+    });
+
+    it('should return error for zero amount', async () => {
+      req.body = {
+        ...validValidationData,
+        amount: 0
+      };
+      (req as any).user = createMockAuth('user-123');
+      
+      mockBillingService.getBill.mockResolvedValue(mockBill);
+
+      await validatePayment(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        status: 400,
+        error: 'Invalid payment amount'
+      });
+    });
+
+    it('should return error for negative amount', async () => {
+      req.body = {
+        ...validValidationData,
+        amount: -50
+      };
+      (req as any).user = createMockAuth('user-123');
+      
+      mockBillingService.getBill.mockResolvedValue(mockBill);
+
+      await validatePayment(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        status: 400,
+        error: 'Invalid payment amount'
+      });
+    });
+
+    it('should return error for amount exceeding total due', async () => {
+      req.body = {
+        ...validValidationData,
+        amount: 200 // More than bill amount + late fee
+      };
+      (req as any).user = createMockAuth('user-123');
+      
+      mockBillingService.getBill.mockResolvedValue(mockBill);
+
+      await validatePayment(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        status: 400,
+        error: 'Invalid payment amount'
+      });
+    });
+
+    it('should handle validation errors gracefully', async () => {
+      req.body = validValidationData;
+      (req as any).user = createMockAuth('user-123');
+      
+      mockBillingService.getBill.mockRejectedValue(new Error('Database error'));
+
+      await validatePayment(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({
+        status: 500,
+        error: 'Payment validation failed'
+      });
+    });
+  });
+});
