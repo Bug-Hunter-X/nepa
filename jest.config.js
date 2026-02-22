@@ -30,5 +30,10 @@ module.exports = {
     '^@/(.*)$': '<rootDir>/src/$1'
   },
   globalSetup: '<rootDir>/tests/globalSetup.ts',
-  globalTeardown: '<rootDir>/tests/globalTeardown.ts'
+  globalTeardown: '<rootDir>/tests/globalTeardown.ts',
+  testPathIgnorePatterns: [
+    '<rootDir>/node_modules/',
+    '<rootDir>/dist/',
+    '<rootDir>/build/'
+  ]
 };
